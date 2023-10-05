@@ -34,31 +34,24 @@ ProfileCase = collections.namedtuple('ProfileCase', 'name iterations ticks')
 def is_valid_block(block):
     if len(block) != 64:
         return False
-    ticks = struct.unpack('=Q', block[0:8])[0]
+    ticks = struct.unpack('=Q', block[:8])[0]
     iterations = struct.unpack('=Q', block[8:16])[0]
     return ticks != 0 and iterations != 0 and block[16] != 0
 
 
 def parse_block(block):
-    ticks = struct.unpack('=Q', block[0:8])[0]
+    ticks = struct.unpack('=Q', block[:8])[0]
     iterations = struct.unpack('=Q', block[8:16])[0]
     name = block[16:].split(b'\0', 1)[0].decode('ascii')
     return ProfileCase(ticks = ticks, iterations = iterations, name = name)
 
 
 def filter_name(name, allow):
-    if allow is None:
-        return True
-    ret = name in allow
-    return ret
+    return True if allow is None else name in allow
 
 
 def find_record_by_name(blocks, name):
-    for block in blocks:
-        if block.name == name:
-            return block
-
-    return None
+    return next((block for block in blocks if block.name == name), None)
 
 
 def normalize_block(block, iter):
@@ -110,8 +103,8 @@ def main():
             raise AssertionError('Cannot use --per-iteration alongside --divider.')
         divider_block = find_record_by_name(blocks, args.divider)
         if divider_block is None:
-            raise AssertionError('Divider block: ' + args.divider + ' does not exist.')
-        print('Dividing other results by number of iterations of {}.'.format(args.divider))
+            raise AssertionError(f'Divider block: {args.divider} does not exist.')
+        print(f'Dividing other results by number of iterations of {args.divider}.')
         blocks = [normalize_block(block, divider_block.iterations) for block in blocks]
     elif args.per_iteration:
         blocks = [per_iteration_normalize(block) for block in blocks]
@@ -125,9 +118,12 @@ def main():
 
     for block in blocks:
         if filter_name(block.name, args.name):
-            print(block.name + ':')
+            print(f'{block.name}:')
             if args.divider is not None:
-                print('    Normalized iterations (iterations per {}):'.format(args.divider), block.iterations)
+                print(
+                    f'    Normalized iterations (iterations per {args.divider}):',
+                    block.iterations,
+                )
             else:
                 print('    Iterations:', block.iterations)
 
